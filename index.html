@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Purple Vortex</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            touch-action: none;
+        }
+
+        canvas {
+            display: block;
+            cursor: crosshair;
+            background: radial-gradient(circle at center, #0a0a0a 0%, #000000 100%);
+        }
+
+        .ui-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        .instructions {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #fff;
+            font-size: 14px;
+            opacity: 0.9;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            max-width: 280px;
+            pointer-events: auto;
+        }
+
+        .instructions h3 {
+            margin: 0 0 12px 0;
+            color: #00ffff;
+            font-size: 16px;
+            text-shadow: 0 0 10px #00ffff;
+        }
+
+        .instructions p {
+            margin: 6px 0;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .instructions .highlight {
+            color: #ff66ff;
+            font-weight: bold;
+        }
+
+        .reset-button {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #ff3366, #ff6699, #ff99cc);
+            border: none;
+            color: white;
+            padding: 14px 24px;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 
+                0 4px 15px rgba(255, 51, 102, 0.4),
+                0 0 20px rgba(255, 51, 102, 0.2);
+            pointer-events: auto;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .reset-button:hover {
+            background: linear-gradient(135deg, #ff6699, #ff99cc, #ffccdd);
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 
+                0 8px 25px rgba(255, 51, 102, 0.6),
+                0 0 30px rgba(255, 51, 102, 0.4);
+        }
+
+        .reset-button:active {
+            transform: translateY(-1px) scale(1.02);
+            box-shadow: 
+                0 4px 15px rgba(255, 51, 102, 0.8),
+                0 0 20px rgba(255, 51, 102, 0.6);
+        }
+
+        .status-indicator {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #fff;
+            font-size: 12px;
+            opacity: 0.7;
+            background: rgba(0, 0, 0, 0.5);
+            padding: 8px 12px;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            pointer-events: auto;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { 
+                text-shadow: 0 0 5px currentColor;
+                opacity: 0.8; 
+            }
+            50% { 
+                text-shadow: 0 0 20px currentColor, 0 0 30px currentColor;
+                opacity: 1; 
+            }
+        }
+
+        .instructions h3 {
+            animation: pulse-glow 3s infinite;
+        }
+
+        @media (max-width: 768px) {
+            .instructions {
+                font-size: 12px;
+                max-width: 240px;
+                padding: 12px;
+            }
+            
+            .instructions h3 {
+                font-size: 14px;
+            }
+            
+            .reset-button {
+                padding: 12px 20px;
+                font-size: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <canvas id="vortexCanvas"></canvas>
+    
+    <div class="ui-overlay">
+        <div class="instructions">
+            <h3>🌀 Vortex Magic</h3>
+            <p><strong>Mouse:</strong> First click creates <span style="color: #00ffff;">blue</span>, second click creates <span style="color: #ff6666;">red</span></p>
+            <p><strong>Touch:</strong> First finger <span style="color: #00ffff;">blue</span>, second finger <span style="color: #ff6666;">red</span></p>
+            <p><strong>Drag:</strong> All vortexes are draggable</p>
+            <p><strong>Merge:</strong> Bring vortexes close together</p>
+            <p><strong class="highlight">Purple:</strong> Drag to move with magical trails!</p>
+        </div>
+        
+        <button class="reset-button" onclick="resetVortexes()">🔄 Reset</button>
+        
+        <div class="status-indicator" id="statusIndicator">
+            Ready to create vortexes...
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('vortexCanvas');
+        const ctx = canvas.getContext('2d');
+        const statusIndicator = document.getElementById('statusIndicator');
+        
+        // Canvas setup with high DPI support
+        function resizeCanvas() {
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.getBoundingClientRect();
+            
+            canvas.width = rect.width * dpr;
+            canvas.height = rect.height * dpr;
+            canvas.style.width = rect.width + 'px';
+            canvas.style.height = rect.height + 'px';
+            
+            ctx.scale(dpr, dpr);
+            
+            // Set canvas to full viewport
+            canvas.style.width = window.innerWidth + 'px';
+            canvas.style.height = window.innerHeight + 'px';
+            canvas.width = window.innerWidth * dpr;
+            canvas.height = window.innerHeight * dpr;
+        }
+        
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // Enhanced Vortex class with advanced particle systems
+        class Vortex {
+            constructor(x, y, color, type) {
+                this.x = x;
+                this.y = y;
+                this.targetX = x;
+                this.targetY = y;
+                this.color = color;
+                this.type = type; // 'blue', 'red', 'purple'
+                this.size = 0;
+                this.targetSize = this.type === 'purple' ? 140 : 90;
+                this.rotation = 0;
+                this.rotationSpeed = this.type === 'purple' ? 0.06 : 0.04;
+                this.particles = [];
+                this.active = true;
+                this.opacity = 1;
+                this.pulsePhase = Math.random() * Math.PI * 2;
+                this.merging = false;
+                this.mergingWith = null;
+                this.birthTime = Date.now();
+                this.isDragging = false;
+                this.dragIntensity = 0;
+                this.trailParticles = [];
+                this.wormholeRings = [];
+                this.energyField = 0;
+                this.id = Math.random().toString(36).substr(2, 9);
+                
+                this.createParticles();
+                this.createWormholeRings();
+            }
+
+            createParticles() {
+                this.particles = [];
+                const particleCount = this.type === 'purple' ? 120 : 80;
+                
+                for (let i = 0; i < particleCount; i++) {
+                    this.particles.push({
+                        angle: (i / particleCount) * Math.PI * 2,
+                        distance: Math.random() * 70 + 15,
+                        speed: Math.random() * 0.03 + 0.01,
+                        size: Math.random() * 4 + 1,
+                        opacity: Math.random() * 0.9 + 0.1,
+                        layer: Math.floor(Math.random() * 3), // Multiple layers for depth
+                        pulseOffset: Math.random() * Math.PI * 2
+                    });
+                }
+            }
+
+            createWormholeRings() {
+                this.wormholeRings = [];
+                const ringCount = this.type === 'purple' ? 8 : 5;
+                
+                for (let i = 0; i < ringCount; i++) {
+                    this.wormholeRings.push({
+                        radius: (i + 1) * 15,
+                        opacity: 1 - (i / ringCount) * 0.7,
+                        rotationOffset: (i * Math.PI) / 4,
+                        pulsePhase: (i * Math.PI) / 3
+                    });
+                }
+            }
+
+            update() {
+                // Smooth movement with easing
+                const moveSpeed = this.isDragging ? 0.4 : 0.12;
+                this.x += (this.targetX - this.x) * moveSpeed;
+                this.y += (this.targetY - this.y) * moveSpeed;
+                
+                // Dynamic size animation
+                let targetSize = this.type === 'purple' ? 140 : 90;
+                if (this.isDragging) {
+                    targetSize *= 1.4;
+                }
+                if (this.merging) {
+                    targetSize *= 1.3;
+                }
+                this.size += (targetSize - this.size) * 0.08;
+                
+                // Enhanced rotation with variable speed
+                const baseRotSpeed = this.type === 'purple' ? 0.06 : 0.04;
+                const rotSpeed = this.isDragging ? baseRotSpeed * 2.5 : 
+                               this.merging ? baseRotSpeed * 3 : baseRotSpeed;
+                this.rotation += rotSpeed;
+                
+                // Multi-layered pulse effects
+                this.pulsePhase += this.isDragging ? 0.2 : 0.1;
+                this.energyField = Math.sin(this.pulsePhase) * 0.3 + 0.7;
+                
+                // Drag intensity with smooth decay
+                this.dragIntensity *= 0.92;
+                
+                // Update particle system
+                this.particles.forEach(particle => {
+                    const speedMultiplier = this.isDragging ? 4 : this.merging ? 6 : 1;
+                    particle.angle += particle.speed * speedMultiplier;
+                    
+                    // Dynamic distance oscillation
+                    const distanceOscillation = Math.sin(particle.angle * 2 + particle.pulseOffset) * 8;
+                    particle.distance += distanceOscillation * 0.1;
+                    
+                    // Keep particles within bounds
+                    particle.distance = Math.max(10, Math.min(particle.distance, 80));
+                });
+
+                // Update wormhole rings
+                this.wormholeRings.forEach((ring, index) => {
+                    ring.pulsePhase += 0.05 + (index * 0.01);
+                    ring.radius = ((index + 1) * 15) + Math.sin(ring.pulsePhase) * 3;
+                });
+
+                // Enhanced trail particles for purple vortex
+                if (this.isDragging && Math.random() < 0.4) {
+                    const trailCount = this.type === 'purple' ? 3 : 1;
+                    for (let i = 0; i < trailCount; i++) {
+                        this.trailParticles.push({
+                            x: this.x + (Math.random() - 0.5) * 60,
+                            y: this.y + (Math.random() - 0.5) * 60,
+                            life: 40 + Math.random() * 20,
+                            maxLife: 60,
+                            size: Math.random() * 12 + 6,
+                            vx: (Math.random() - 0.5) * 3,
+                            vy: (Math.random() - 0.5) * 3,
+                            color: this.type === 'purple' ? 
+                                   `hsl(${280 + Math.random() * 40}, 80%, ${60 + Math.random() * 30}%)` :
+                                   this.type === 'blue' ? 
+                                   `hsl(${190 + Math.random() * 30}, 80%, ${60 + Math.random() * 30}%)` :
+                                   `hsl(${350 + Math.random() * 30}, 80%, ${60 + Math.random() * 30}%)`
+                        });
+                    }
+                }
+
+                // Update trail particles with physics
+                this.trailParticles.forEach((particle, index) => {
+                    particle.x += particle.vx;
+                    particle.y += particle.vy;
+                    particle.vx *= 0.96;
+                    particle.vy *= 0.96;
+                    particle.life--;
+                    
+                    // Add slight attraction to vortex center
+                    const dx = this.x - particle.x;
+                    const dy = this.y - particle.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    if (distance > 0) {
+                        particle.vx += (dx / distance) * 0.1;
+                        particle.vy += (dy / distance) * 0.1;
+                    }
+                    
+                    if (particle.life <= 0) {
+                        this.trailParticles.splice(index, 1);
+                    }
+                });
+
+                // Check for merging (enhanced collision detection)
+                if (!this.merging && this.type !== 'purple' && vortexes.length > 1) {
+                    this.checkForMerging();
+                }
+            }
+
+            checkForMerging() {
+                vortexes.forEach(other => {
+                    if (other !== this && !other.merging && other.type !== this.type && other.type !== 'purple') {
+                        const distance = Math.sqrt(
+                            Math.pow(this.x - other.x, 2) + Math.pow(this.y - other.y, 2)
+                        );
+                        
+                        if (distance < 140) {
+                            this.startMerging(other);
+                            updateStatus('Vortexes merging... 🌀');
+                        }
+                    }
+                });
+            }
+
+            startMerging(other) {
+                this.merging = true;
+                other.merging = true;
+                this.mergingWith = other;
+                other.mergingWith = this;
+                
+                // Enhanced gravitational attraction
+                this.attractTo(other);
+                other.attractTo(this);
+                
+                // Schedule merger completion with dramatic timing
+                setTimeout(() => {
+                    this.completeMerge(other);
+                }, 1200);
+            }
+
+            attractTo(other) {
+                const centerX = (this.x + other.x) / 2;
+                const centerY = (this.y + other.y) / 2;
+                
+                // Stronger gravitational pull
+                const attractionStrength = 0.2;
+                this.targetX += (centerX - this.x) * attractionStrength;
+                this.targetY += (centerY - this.y) * attractionStrength;
+                
+                // Enhanced deformation effects
+                this.rotationSpeed = 0.25;
+                this.dragIntensity = Math.min(this.dragIntensity + 0.3, 1.5);
+            }
+
+            completeMerge(other) {
+                const centerX = (this.x + other.x) / 2;
+                const centerY = (this.y + other.y) / 2;
+                
+                // Remove both vortexes
+                const thisIndex = vortexes.indexOf(this);
+                const otherIndex = vortexes.indexOf(other);
+                
+                if (thisIndex > -1) vortexes.splice(thisIndex, 1);
+                if (otherIndex > -1) vortexes.splice(otherIndex, 1);
+                
+                // Create enhanced purple vortex
+                const purpleVortex = new Vortex(centerX, centerY, 'purple', 'purple');
+                purpleVortex.targetSize = 140;
+                purpleVortex.rotationSpeed = 0.08;
+                purpleVortex.energyField = 1.2;
+                vortexes.push(purpleVortex);
+                
+                // Mark that purple vortex exists
+                hasPurpleVortex = true;
+                updateStatus('Purple vortex created! Drag to move 💜');
+                
+                // Create spectacular explosion effect
+                createMergeExplosion(centerX, centerY);
+            }
+
+            isPointInside(x, y) {
+                const distance = Math.sqrt(Math.pow(x - this.x, 2) + Math.pow(y - this.y, 2));
+                return distance < this.size * 0.8;
+            }
+
+            draw() {
+                ctx.save();
+                
+                // Draw enhanced trail particles
+                if (this.trailParticles.length > 0) {
+                    this.trailParticles.forEach(particle => {
+                        const alpha = (particle.life / particle.maxLife);
+                        ctx.globalAlpha = alpha * 0.8;
+                        
+                        const trailGradient = ctx.createRadialGradient(
+                            particle.x, particle.y, 0,
+                            particle.x, particle.y, particle.size
+                        );
+                        trailGradient.addColorStop(0, particle.color);
+                        trailGradient.addColorStop(0.5, particle.color.replace(')', ', 0.6)').replace('hsl', 'hsla'));
+                        trailGradient.addColorStop(1, 'rgba(255, 100, 255, 0)');
+                        
+                        ctx.fillStyle = trailGradient;
+                        ctx.beginPath();
+                        ctx.arc(particle.x, particle.y, particle.size * alpha, 0, Math.PI * 2);
+                        ctx.fill();
+                        
+                        // Add sparkle effect
+                        if (Math.random() < 0.3) {
+                            ctx.fillStyle = `rgba(255, 255, 255, ${alpha * 0.8})`;
+                            ctx.beginPath();
+                            ctx.arc(particle.x, particle.y, 1, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    });
+                }
+                
+                ctx.translate(this.x, this.y);
+                
+                // Enhanced squash and stretch effect
+                if (this.isDragging || this.merging) {
+                    const intensity = this.isDragging ? this.dragIntensity : 0.5;
+                    const squashX = 1 + intensity * 0.4;
+                    const squashY = 1 - intensity * 0.3;
+                    ctx.scale(squashX, squashY);
+                }
+                
+                ctx.rotate(this.rotation);
+                
+                // Draw wormhole rings first (background layer)
+                this.wormholeRings.forEach((ring, index) => {
+                    ctx.globalAlpha = ring.opacity * this.opacity * 0.6;
+                    ctx.strokeStyle = this.getColorForType(0.4);
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, ring.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+                });
+                
+                // Enhanced glow effect with multiple layers
+                const glowSize = this.size * this.energyField;
+                const glowMultiplier = this.isDragging ? 3 : this.type === 'purple' ? 2.2 : 1.8;
+                
+                // Outer atmospheric glow
+                const atmosphereGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, glowSize * glowMultiplier * 1.5);
+                const atmosphereColor = this.getAtmosphereGradient();
+                atmosphereGradient.addColorStop(0, atmosphereColor.inner);
+                atmosphereGradient.addColorStop(0.4, atmosphereColor.mid);
+                atmosphereGradient.addColorStop(0.8, atmosphereColor.outer);
+                atmosphereGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                ctx.globalAlpha = this.opacity * 0.6;
+                ctx.fillStyle = atmosphereGradient;
+                ctx.fillRect(-glowSize * glowMultiplier * 1.5, -glowSize * glowMultiplier * 1.5, 
+                           glowSize * glowMultiplier * 3, glowSize * glowMultiplier * 3);
+                
+                // Main glow
+                const mainGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, glowSize * glowMultiplier);
+                const mainColor = this.getMainGradient();
+                mainGradient.addColorStop(0, mainColor.inner);
+                mainGradient.addColorStop(0.3, mainColor.mid);
+                mainGradient.addColorStop(0.7, mainColor.outer);
+                mainGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                
+                ctx.globalAlpha = this.opacity * 0.9;
+                ctx.fillStyle = mainGradient;
+                ctx.fillRect(-glowSize * glowMultiplier, -glowSize * glowMultiplier, 
+                           glowSize * glowMultiplier * 2, glowSize * glowMultiplier * 2);
+                
+                // Enhanced inner core with multiple layers
+                const coreSize = this.size * 0.7;
+                const coreGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, coreSize);
+                const coreColor = this.getCoreGradient();
+                coreGradient.addColorStop(0, coreColor.center);
+                coreGradient.addColorStop(0.3, coreColor.inner);
+                coreGradient.addColorStop(0.7, coreColor.mid);
+                coreGradient.addColorStop(1, coreColor.outer);
+                
+                ctx.globalAlpha = this.opacity;
+                ctx.fillStyle = coreGradient;
+                ctx.beginPath();
+                ctx.arc(0, 0, coreSize, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Draw swirling particles in multiple layers
+                this.particles.forEach(particle => {
+                    const layerDepth = particle.layer / 3;
+                    const x = Math.cos(particle.angle) * particle.distance * (1 - layerDepth * 0.3);
+                    const y = Math.sin(particle.angle) * particle.distance * (1 - layerDepth * 0.3);
+                    
+                    ctx.globalAlpha = particle.opacity * this.opacity * (1 - layerDepth * 0.4);
+                    
+                    // Particle glow
+                    const particleGradient = ctx.createRadialGradient(x, y, 0, x, y, particle.size * 2);
+                    particleGradient.addColorStop(0, this.getColorForType(0.9));
+                    particleGradient.addColorStop(0.5, this.getColorForType(0.5));
+                    particleGradient.addColorStop(1, this.getColorForType(0));
+                    
+                    ctx.fillStyle = particleGradient;
+                    ctx.beginPath();
+                    ctx.arc(x, y, particle.size, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    // Add sparkle effect for purple vortex
+                    if (this.type === 'purple' && Math.random() < 0.1) {
+                        ctx.fillStyle = `rgba(255, 255, 255, ${particle.opacity * 0.8})`;
+                        ctx.beginPath();
+                        ctx.arc(x, y, 0.5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+                
+                ctx.restore();
+                ctx.globalAlpha = 1;
+            }
+
+            getColorForType(alpha) {
+                switch (this.type) {
+                    case 'blue':
+                        return `rgba(0, 255, 255, ${alpha})`;
+                    case 'red':
+                        return `rgba(255, 100, 100, ${alpha})`;
+                    case 'purple':
+                        return `rgba(255, 100, 255, ${alpha})`;
+                    default:
+                        return `rgba(255, 255, 255, ${alpha})`;
+                }
+            }
+
+            getAtmosphereGradient() {
+                const intensity = this.isDragging ? 1.3 : 1;
+                switch (this.type) {
+                    case 'blue':
+                        return {
+                            inner: `rgba(0, 150, 255, ${0.3 * intensity})`,
+                            mid: `rgba(0, 200, 255, ${0.2 * intensity})`,
+                            outer: `rgba(0, 255, 255, ${0.1 * intensity})`
+                        };
+                    case 'red':
+                        return {
+                            inner: `rgba(255, 100, 100, ${0.3 * intensity})`,
+                            mid: `rgba(255, 150, 150, ${0.2 * intensity})`,
+                            outer: `rgba(255, 200, 200, ${0.1 * intensity})`
+                        };
+                    case 'purple':
+                        return {
+                            inner: `rgba(200, 100, 255, ${0.4 * intensity})`,
+                            mid: `rgba(255, 150, 255, ${0.3 * intensity})`,
+                            outer: `rgba(255, 200, 255, ${0.15 * intensity})`
+                        };
+                }
+            }
+
+            getMainGradient() {
+                const intensity = this.isDragging ? 1.2 : 1;
+                switch (this.type) {
+                    case 'blue':
+                        return {
+                            inner: `rgba(100, 200, 255, ${0.8 * intensity})`,
+                            mid: `rgba(0, 150, 255, ${0.6 * intensity})`,
+                            outer: `rgba(0, 100, 255, ${0.3 * intensity})`
+                        };
+                    case 'red':
+                        return {
+                            inner: `rgba(255, 150, 150, ${0.8 * intensity})`,
+                            mid: `rgba(255, 100, 100, ${0.6 * intensity})`,
+                            outer: `rgba(255, 50, 50, ${0.3 * intensity})`
+                        };
+                    case 'purple':
+                        return {
+                            inner: `rgba(255, 150, 255, ${0.9 * intensity})`,
+                            mid: `rgba(200, 100, 255, ${0.7 * intensity})`,
+                            outer: `rgba(150, 50, 255, ${0.4 * intensity})`
+                        };
+                }
+            }
+
+            getCoreGradient() {
+                const intensity = this.isDragging ? 1.1 : 1;
+                switch (this.type) {
+                    case 'blue':
+                        return {
+                            center: `rgba(255, 255, 255, ${0.9 * intensity})`,
+                            inner: `rgba(200, 240, 255, ${0.8 * intensity})`,
+                            mid: `rgba(100, 200, 255, ${0.7 * intensity})`,
+                            outer: `rgba(0, 150, 255, ${0.5 * intensity})`
+                        };
+                    case 'red':
+                        return {
+                            center: `rgba(255, 255, 255, ${0.9 * intensity})`,
+                            inner: `rgba(255, 200, 200, ${0.8 * intensity})`,
+                            mid: `rgba(255, 150, 150, ${0.7 * intensity})`,
+                            outer: `rgba(255, 100, 100, ${0.5 * intensity})`
+                        };
+                    case 'purple':
+                        return {
+                            center: `rgba(255, 255, 255, ${0.95 * intensity})`,
+                            inner: `rgba(255, 220, 255, ${0.85 * intensity})`,
+                            mid: `rgba(255, 180, 255, ${0.75 * intensity})`,
+                            outer: `rgba(200, 100, 255, ${0.6 * intensity})`
+                        };
+                }
+            }
+        }
+
+        // Enhanced explosion effect for merging
+        function createMergeExplosion(x, y) {
+            const particles = [];
+            const particleCount = 50;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (i / particleCount) * Math.PI * 2;
+                const speed = Math.random() * 8 + 4;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 80 + Math.random() * 40,
+                    maxLife: 120,
+                    size: Math.random() * 6 + 3,
+                    color: `hsl(${280 + Math.random() * 40}, 80%, ${60 + Math.random() * 30}%)`,
+                    rotation: Math.random() * Math.PI * 2,
+                    rotationSpeed: (Math.random() - 0.5) * 0.2
+                });
+            }
+            
+            explosions.push(particles);
+        }
+
+        // Status update function
+        function updateStatus(message) {
+            statusIndicator.textContent = message;
+            statusIndicator.style.opacity = '1';
+            setTimeout(() => {
+                statusIndicator.style.opacity = '0.7';
+            }, 2000);
+        }
+
+        // Game state
+        let vortexes = [];
+        let explosions = [];
+        let hasPurpleVortex = false;
+        let draggedVortex = null;
+        let touchVortexMap = new Map(); // Maps touch identifier to vortex
+
+        // Reset function
+        function resetVortexes() {
+            vortexes = [];
+            explosions = [];
+            hasPurpleVortex = false;
+            draggedVortex = null;
+            touchVortexMap.clear();
+            updateStatus('Vortexes reset. Ready to create new ones!');
+        }
+
+        // Find vortex at position
+        function findVortexAt(x, y) {
+            for (let i = vortexes.length - 1; i >= 0; i--) {
+                if (vortexes[i].isPointInside(x, y)) {
+                    return vortexes[i];
+                }
+            }
+            return null;
+        }
+
+        // Enhanced touch handling
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            
+            const rect = canvas.getBoundingClientRect();
+            const touches = Array.from(e.changedTouches);
+            
+            touches.forEach(touch => {
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                // Check if touching an existing vortex
+                const existingVortex = findVortexAt(x, y);
+                
+                if (existingVortex) {
+                    // Start dragging this vortex
+                    existingVortex.isDragging = true;
+                    existingVortex.dragIntensity = 1;
+                    touchVortexMap.set(touch.identifier, existingVortex);
+                    updateStatus(`Dragging ${existingVortex.type} vortex... ✨`);
+                } else if (!hasPurpleVortex) {
+                    // Create new vortex if no purple vortex exists
+                    let blueExists = vortexes.some(v => v.type === 'blue');
+                    let redExists = vortexes.some(v => v.type === 'red');
+                    
+                    if (!blueExists) {
+                        // Create blue vortex
+                        const blueVortex = new Vortex(x, y, 'blue', 'blue');
+                        vortexes.push(blueVortex);
+                        touchVortexMap.set(touch.identifier, blueVortex);
+                        updateStatus('Blue vortex created! 💙');
+                    } else if (!redExists) {
+                        // Create red vortex
+                        const redVortex = new Vortex(x, y, 'red', 'red');
+                        vortexes.push(redVortex);
+                        touchVortexMap.set(touch.identifier, redVortex);
+                        updateStatus('Red vortex created! ❤️');
+                    }
+                }
+            });
+        });
+
+        canvas.addEventListener('touchmove', (e) => {
+            e.preventDefault();
+            
+            const rect = canvas.getBoundingClientRect();
+            const touches = Array.from(e.changedTouches);
+            
+            touches.forEach(touch => {
+                const x = touch.clientX - rect.left;
+                const y = touch.clientY - rect.top;
+                
+                const vortex = touchVortexMap.get(touch.identifier);
+                if (vortex) {
+                    vortex.targetX = x;
+                    vortex.targetY = y;
+                    vortex.dragIntensity = Math.min(vortex.dragIntensity + 0.1, 1.5);
+                }
+            });
+        });
+
+        canvas.addEventListener('touchend', (e) => {
+            e.preventDefault();
+            
+            const touches = Array.from(e.changedTouches);
+            
+            touches.forEach(touch => {
+                const vortex = touchVortexMap.get(touch.identifier);
+                if (vortex) {
+                    vortex.isDragging = false;
+                    touchVortexMap.delete(touch.identifier);
+                    updateStatus(`${vortex.type.charAt(0).toUpperCase() + vortex.type.slice(1)} vortex released`);
+                }
+            });
+        });
+
+        // Mouse state
+        let mouseIsDown = false;
+        let mouseVortex = null;
+
+        // Enhanced mouse handling
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            mouseIsDown = true;
+            
+            // Check if clicking on an existing vortex
+            const existingVortex = findVortexAt(x, y);
+            
+            if (existingVortex) {
+                // Start dragging this vortex
+                existingVortex.isDragging = true;
+                existingVortex.dragIntensity = 1;
+                mouseVortex = existingVortex;
+                updateStatus(`Dragging ${existingVortex.type} vortex... ✨`);
+            } else if (!hasPurpleVortex) {
+                // Create new vortex if no purple vortex exists
+                let blueExists = vortexes.some(v => v.type === 'blue');
+                let redExists = vortexes.some(v => v.type === 'red');
+                
+                if (!blueExists) {
+                    // Create blue vortex
+                    const blueVortex = new Vortex(x, y, 'blue', 'blue');
+                    vortexes.push(blueVortex);
+                    mouseVortex = blueVortex;
+                    mouseVortex.isDragging = true;
+                    updateStatus('Blue vortex created! 💙');
+                } else if (!redExists) {
+                    // Create red vortex
+                    const redVortex = new Vortex(x, y, 'red', 'red');
+                    vortexes.push(redVortex);
+                    mouseVortex = redVortex;
+                    mouseVortex.isDragging = true;
+                    updateStatus('Red vortex created! ❤️');
+                }
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!mouseIsDown || !mouseVortex) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            mouseVortex.targetX = x;
+            mouseVortex.targetY = y;
+            mouseVortex.dragIntensity = Math.min(mouseVortex.dragIntensity + 0.1, 1.5);
+        });
+
+        canvas.addEventListener('mouseup', () => {
+            mouseIsDown = false;
+            
+            if (mouseVortex) {
+                mouseVortex.isDragging = false;
+                updateStatus(`${mouseVortex.type.charAt(0).toUpperCase() + mouseVortex.type.slice(1)} vortex released`);
+                mouseVortex = null;
+            }
+        });
+
+        // Enhanced animation loop with performance optimization
+        let lastFrameTime = 0;
+        const targetFPS = 60;
+        const frameInterval = 1000 / targetFPS;
+
+        function animate(currentTime) {
+            if (currentTime - lastFrameTime >= frameInterval) {
+                // Clear canvas with subtle fade effect for trails
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.05)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // Update and draw vortexes
+                vortexes.forEach(vortex => {
+                    vortex.update();
+                    vortex.draw();
+                });
+                
+                // Update and draw explosions
+                explosions.forEach((explosion, explosionIndex) => {
+                    explosion.forEach((particle, particleIndex) => {
+                        particle.x += particle.vx;
+                        particle.y += particle.vy;
+                        particle.vx *= 0.98;
+                        particle.vy *= 0.98;
+                        particle.life--;
+                        particle.rotation += particle.rotationSpeed;
+                        
+                        if (particle.life > 0) {
+                            const alpha = particle.life / particle.maxLife;
+                            ctx.globalAlpha = alpha;
+                            
+                            ctx.save();
+                            ctx.translate(particle.x, particle.y);
+                            ctx.rotate(particle.rotation);
+                            
+                            const particleGradient = ctx.createRadialGradient(0, 0, 0, 0, 0, particle.size);
+                            particleGradient.addColorStop(0, particle.color);
+                            particleGradient.addColorStop(0.5, particle.color.replace(')', ', 0.6)').replace('hsl', 'hsla'));
+                            particleGradient.addColorStop(1, 'rgba(255, 100, 255, 0)');
+                            
+                            ctx.fillStyle = particleGradient;
+                            ctx.beginPath();
+                            ctx.arc(0, 0, particle.size * alpha, 0, Math.PI * 2);
+                            ctx.fill();
+                            
+                            ctx.restore();
+                        } else {
+                            explosion.splice(particleIndex, 1);
+                        }
+                    });
+                    
+                    if (explosion.length === 0) {
+                        explosions.splice(explosionIndex, 1);
+                    }
+                });
+                
+                ctx.globalAlpha = 1;
+                lastFrameTime = currentTime;
+            }
+            
+            requestAnimationFrame(animate);
+        }
+
+        // Initialize
+        updateStatus('Ready to create vortexes...');
+        animate(0);
+    </script>
+</body>
+</html>
